@@ -1,284 +1,179 @@
-# Vehicle Parking Management System
+# Library Management System
 
-A comprehensive microservices-based vehicle parking management system built with Spring Boot 3.3.3 and Java 21. The system provides complete functionality for managing parking lots, user accounts, bookings, payments, and notifications with proper layered architecture.
+A comprehensive microservices-based library management system built with Spring Boot, Spring Cloud, and modern architectural patterns.
 
 ## 🏗️ Architecture Overview
 
-The system follows a microservices architecture with proper separation of concerns:
+This system follows a microservices architecture with the following components:
 
-- **Controller Layer**: Handles HTTP requests and responses
-- **Service Layer**: Contains business logic and orchestration
-- **Repository Layer**: Manages data persistence
-- **Event-Driven Communication**: Asynchronous messaging via RabbitMQ
-- **Caching**: Redis for performance optimization
-- **Security**: JWT-based authentication with role-based access control
+- **Eureka Service Discovery** - Service registry and discovery
+- **API Gateway** - Centralized routing and load balancing
+- **User Service** - User management and authentication
+- **Catalog Service** - Book catalog management
+- **Borrow Service** - Book borrowing and lending
+- **Fine Service** - Fine calculation and payment processing
+- **Notification Service** - Email notifications and alerts
 
-### High-Level Design (HLD)
+### High-Level Design Diagram
 
 ```mermaid
 graph TB
-    Client[Client Applications] --> Gateway[API Gateway :8080]
+    Client[Client Applications] --> Gateway[API Gateway<br/>Port: 8080]
+    Gateway --> Eureka[Eureka Service Discovery<br/>Port: 8761]
     
-    Gateway --> Discovery[Eureka Discovery :8761]
-    Gateway --> UserService[User Service :8081]
-    Gateway --> AdminService[Admin Service :8082]
-    Gateway --> BookingService[Booking Service :8083]
-    Gateway --> PaymentService[Payment Service :8084]
-    Gateway --> NotificationService[Notification Service :8085]
+    Gateway --> UserService[User Service<br/>Port: 8081]
+    Gateway --> CatalogService[Catalog Service<br/>Port: 8082]
+    Gateway --> BorrowService[Borrow Service<br/>Port: 8083]
+    Gateway --> FineService[Fine Service<br/>Port: 8084]
+    Gateway --> NotificationService[Notification Service<br/>Port: 8085]
     
-    UserService --> UserDB[(User Database)]
-    AdminService --> AdminDB[(Admin Database)]
-    BookingService --> BookingDB[(Booking Database)]
-    PaymentService --> PaymentDB[(Payment Database)]
-    NotificationService --> NotificationDB[(Notification Database)]
+    UserService --> UserDB[(User Database<br/>MySQL)]
+    CatalogService --> CatalogDB[(Catalog Database<br/>MySQL)]
+    BorrowService --> BorrowDB[(Borrow Database<br/>MySQL)]
+    FineService --> FineDB[(Fine Database<br/>MySQL)]
+    NotificationService --> NotifDB[(Notification Database<br/>MySQL)]
     
-    UserService --> Redis[(Redis Cache)]
-    BookingService --> Redis
-    PaymentService --> Redis
-    
-    UserService --> RabbitMQ[RabbitMQ Message Broker]
-    AdminService --> RabbitMQ
-    BookingService --> RabbitMQ
-    PaymentService --> RabbitMQ
+    UserService --> RabbitMQ[RabbitMQ<br/>Message Broker]
+    CatalogService --> RabbitMQ
+    BorrowService --> RabbitMQ
+    FineService --> RabbitMQ
     NotificationService --> RabbitMQ
     
-    subgraph "External Services"
-        SMTP[SMTP Server]
-        EmailService[Email Service]
-    end
+    UserService --> Redis[(Redis Cache)]
     
-    NotificationService --> SMTP
-    NotificationService --> EmailService
+    NotificationService --> SMTP[SMTP Server<br/>Email Service]
+    
+    subgraph "External Services"
+        SMTP
+    end
     
     subgraph "Infrastructure"
-        MySQL[(MySQL 8.x)]
-        RedisInfra[(Redis 7.x)]
-        RabbitInfra[RabbitMQ 4.x]
+        Eureka
+        RabbitMQ
+        Redis
     end
     
-    UserDB --> MySQL
-    AdminDB --> MySQL
-    BookingDB --> MySQL
-    PaymentDB --> MySQL
-    NotificationDB --> MySQL
+    subgraph "Microservices"
+        UserService
+        CatalogService
+        BorrowService
+        FineService
+        NotificationService
+    end
     
-    Redis --> RedisInfra
-    RabbitMQ --> RabbitInfra
+    subgraph "Databases"
+        UserDB
+        CatalogDB
+        BorrowDB
+        FineDB
+        NotifDB
+    end
 ```
-
-### Entity Relationship (ER) Diagram
-
-```mermaid
-erDiagram
-    USER {
-        uuid id PK
-        string email UK
-        string full_name
-        string password_hash
-        enum role
-        datetime created_at
-        datetime updated_at
-    }
-    
-    PASSWORD_RESET_TOKEN {
-        uuid id PK
-        uuid user_id FK
-        string token UK
-        datetime expires_at
-        datetime created_at
-    }
-    
-    PARKING_LOT {
-        bigint id PK
-        string name
-        string address
-        datetime created_at
-        datetime updated_at
-    }
-    
-    PARKING_SPOT {
-        bigint id PK
-        bigint lot_id FK
-        string code
-        boolean available
-        datetime created_at
-        datetime updated_at
-    }
-    
-    BOOKING {
-        uuid id PK
-        uuid user_id FK
-        bigint lot_id FK
-        bigint spot_id FK
-        datetime start_time
-        datetime end_time
-        string status
-        datetime created_at
-        datetime updated_at
-    }
-    
-    WAITLIST {
-        uuid id PK
-        uuid user_id FK
-        bigint lot_id FK
-        bigint spot_id FK
-        datetime start_time
-        datetime end_time
-        datetime created_at
-        datetime updated_at
-    }
-    
-    PAYMENT {
-        uuid id PK
-        uuid user_id FK
-        uuid booking_id FK
-        decimal amount
-        string status
-        datetime created_at
-        datetime updated_at
-    }
-    
-    USER ||--o{ PASSWORD_RESET_TOKEN : "has"
-    USER ||--o{ BOOKING : "creates"
-    USER ||--o{ WAITLIST : "joins"
-    USER ||--o{ PAYMENT : "makes"
-    
-    PARKING_LOT ||--o{ PARKING_SPOT : "contains"
-    PARKING_LOT ||--o{ BOOKING : "hosts"
-    PARKING_LOT ||--o{ WAITLIST : "hosts"
-    
-    PARKING_SPOT ||--o{ BOOKING : "reserved_by"
-    PARKING_SPOT ||--o{ WAITLIST : "requested_for"
-    
-    BOOKING ||--o{ PAYMENT : "requires"
-```
-
-## 🚀 Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Discovery Service | 8761 | Eureka Server for service discovery |
-| API Gateway | 8080 | Central entry point for all requests |
-| User Service | 8081 | User management, authentication, profiles |
-| Admin Service | 8082 | Parking lot and spot management |
-| Booking Service | 8083 | Booking creation, management, waitlist |
-| Payment Service | 8084 | Payment processing and tracking |
-| Notification Service | 8085 | Email notifications and alerts |
-
-## 🛠️ Technology Stack
-
-- **Backend**: Spring Boot 3.3.3, Java 21
-- **Database**: MySQL 8.x
-- **Caching**: Redis 7.x
-- **Message Broker**: RabbitMQ 4.x (Erlang 28.x)
-- **Service Discovery**: Eureka
-- **API Gateway**: Spring Cloud Gateway
-- **Security**: JWT, BCrypt
-- **Documentation**: Swagger/OpenAPI
-
-## 📋 Prerequisites
-
-1. **Java 21** installed
-2. **MySQL 8.x** running locally
-3. **Redis 7.x** running locally
-4. **RabbitMQ 4.x** running locally (with Erlang 28.x)
-5. **Maven 3.6+** for building
 
 ## 🚀 Quick Start
 
-### 1. Database Setup
-```sql
--- Create databases for each service
-CREATE DATABASE user_service_db;
-CREATE DATABASE admin_service_db;
-CREATE DATABASE booking_service_db;
-CREATE DATABASE payment_service_db;
-CREATE DATABASE notification_service_db;
-```
+### Prerequisites
 
-### 2. Configuration
-Update `application.yml` in each service with your MySQL credentials:
-```yaml
-spring:
-  datasource:
-    username: your_username
-    password: your_password
-```
+- Java 21+
+- Maven 3.8+
+- MySQL 8.0+
+- RabbitMQ
+- Redis (optional, for caching)
 
-### 3. Start Services
-Use the provided batch script or start manually:
+### Running the Services
 
-**Windows:**
-```bash
-start-all-services.bat
-```
+1. **Start Eureka Service Discovery**
+   ```bash
+   cd eureka-service
+   mvn spring-boot:run
+   ```
+   Access at: http://localhost:8761
 
-**Manual Start Order:**
-```bash
-# Terminal 1 - Discovery Service
-cd discovery-service && mvn spring-boot:run
+2. **Start API Gateway**
+   ```bash
+   cd api-gateway
+   mvn spring-boot:run
+   ```
+   Access at: http://localhost:8080
 
-# Terminal 2 - API Gateway (wait 10 seconds)
-cd api-gateway && mvn spring-boot:run
+3. **Start User Service**
+   ```bash
+   cd user-service
+   mvn spring-boot:run
+   ```
 
-# Terminal 3 - User Service (wait 5 seconds)
-cd user-service && mvn spring-boot:run
-
-# Terminal 4 - Admin Service (wait 5 seconds)
-cd admin-service && mvn spring-boot:run
-
-# Terminal 5 - Booking Service (wait 5 seconds)
-cd booking-service && mvn spring-boot:run
-
-# Terminal 6 - Payment Service (wait 5 seconds)
-cd payment-service && mvn spring-boot:run
-
-# Terminal 7 - Notification Service (wait 5 seconds)
-cd notification-service && mvn spring-boot:run
-```
+4. **Start Other Services**
+   ```bash
+   # Catalog Service
+   cd catalog-service && mvn spring-boot:run
+   
+   # Borrow Service
+   cd borrow-service && mvn spring-boot:run
+   
+   # Fine Service
+   cd fine-service && mvn spring-boot:run
+   
+   # Notification Service
+   cd notification-service && mvn spring-boot:run
+   ```
 
 ## 📚 API Documentation
 
-### 🔐 User Service (Port 8081)
+### User Service APIs
 
-**Base URL:** `http://localhost:8081`
+**Base URL:** `http://localhost:8080/api/users` (via Gateway) or `http://localhost:8081/api` (direct)
 
 #### Authentication Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/register` | Register new user | No |
-| POST | `/api/auth/login` | User login | No |
-| POST | `/api/auth/logout` | User logout | Yes |
-| POST | `/api/auth/change-password` | Change password | Yes |
-| POST | `/api/auth/forgot-password` | Request password reset | No |
-| POST | `/api/auth/reset-password` | Reset password with token | No |
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| POST | `/auth/register` | Register new user | No |
+| POST | `/auth/login` | Login and get JWT token | No |
+| POST | `/auth/User-login` | Simple login (returns user details) | No |
+| POST | `/auth/password/forgot` | Request password reset | No |
+| POST | `/auth/password/reset` | Reset password with token | No |
 
-#### User Management Endpoints
+#### Profile Management Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/users/me` | Get user profile | Yes |
-| PUT | `/api/users/me` | Update user profile | Yes |
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| GET | `/profile?email={email}` | Get user profile | Yes (JWT) |
+| PUT | `/profile?email={email}&name={name}` | Update user profile | Yes (JWT) |
 
 #### Request/Response Examples
 
-**Register User:**
-```json
-POST /api/auth/register
+**1. User Registration**
+```bash
+POST /api/users/auth/register
+Content-Type: application/json
+
 {
-  "fullName": "John Doe",
-  "email": "john@example.com",
+  "email": "user@example.com",
+  "name": "John Doe",
   "password": "password123",
-  "role": "USER"
+  "roles": ["USER"]
 }
 ```
 
-**Login:**
+**Response:**
 ```json
-POST /api/auth/login
 {
-  "email": "john@example.com",
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "passwordHash": "$2a$10$...",
+  "roles": ["USER"],
+  "createdAt": "2025-10-28T18:20:31.527771Z"
+}
+```
+
+**2. User Login (JWT)**
+```bash
+POST /api/users/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
   "password": "password123"
 }
 ```
@@ -286,287 +181,350 @@ POST /api/auth/login
 **Response:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "token": "eyJhbGciOiJIUzI1NiJ9..."
 }
 ```
 
-### 🏢 Admin Service (Port 8082)
-
-**Base URL:** `http://localhost:8082`
-
-#### Parking Lot Management
-
-| Method | Endpoint | Description | Auth Required | Role |
-|--------|----------|-------------|---------------|------|
-| GET | `/api/lots` | Get all parking lots | Yes | ADMIN, LOT_MANAGER |
-| POST | `/api/lots` | Create parking lot | Yes | ADMIN |
-| PUT | `/api/lots/{id}` | Update parking lot | Yes | ADMIN |
-| DELETE | `/api/lots/{id}` | Delete parking lot | Yes | ADMIN |
-
-#### Parking Spot Management
-
-| Method | Endpoint | Description | Auth Required | Role |
-|--------|----------|-------------|---------------|------|
-| POST | `/api/lots/{id}/spots` | Add spot to lot | Yes | ADMIN, LOT_MANAGER |
-| PUT | `/api/lots/{lotId}/spots/{spotId}` | Update spot | Yes | ADMIN, LOT_MANAGER |
-| DELETE | `/api/lots/{lotId}/spots/{spotId}` | Delete spot | Yes | ADMIN |
-| GET | `/api/lots/{id}/spots` | Get available spots | Yes | ADMIN, LOT_MANAGER |
-| GET | `/api/lots/{id}/spots/all` | Get all spots | Yes | ADMIN, LOT_MANAGER |
-
-#### Request Examples
-
-**Create Parking Lot:**
-```json
-POST /api/lots
-{
-  "name": "Downtown Parking",
-  "address": "123 Main St, City"
-}
-```
-
-**Add Parking Spot:**
-```json
-POST /api/lots/1/spots
-{
-  "code": "A-01",
-  "available": true
-}
-```
-
-### 📅 Booking Service (Port 8083)
-
-**Base URL:** `http://localhost:8083`
-
-#### Booking Management
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/bookings` | Get user bookings | Yes |
-| GET | `/api/bookings/{id}` | Get specific booking | Yes |
-| POST | `/api/bookings` | Create booking | Yes |
-| PUT | `/api/bookings/{id}` | Update booking | Yes |
-| DELETE | `/api/bookings/{id}` | Cancel booking | Yes |
-| GET | `/api/bookings/past` | Get past bookings | Yes |
-| GET | `/api/bookings/future` | Get future bookings | Yes |
-
-#### Waitlist Management
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/bookings/waitlist` | Get user waitlist | Yes |
-| POST | `/api/bookings/waitlist` | Add to waitlist | Yes |
-| DELETE | `/api/bookings/waitlist/{id}` | Cancel waitlist entry | Yes |
-
-#### Request Examples
-
-**Create Booking:**
-```json
-POST /api/bookings
-{
-  "lotId": 1,
-  "spotId": 1,
-  "startTime": "2024-01-15T09:00:00",
-  "endTime": "2024-01-15T17:00:00"
-}
-```
-
-**Response (Success):**
-```json
-{
-  "id": "123e4567-e89b-12d3-a456-426614174000",
-  "userId": "456e7890-e89b-12d3-a456-426614174001",
-  "lotId": 1,
-  "spotId": 1,
-  "startTime": "2024-01-15T09:00:00",
-  "endTime": "2024-01-15T17:00:00",
-  "status": "CREATED"
-}
-```
-
-**Response (Waitlist):**
-```json
-{
-  "message": "spot unavailable, added to waitlist",
-  "waitlistId": "789e0123-e89b-12d3-a456-426614174002",
-  "position": 3
-}
-```
-
-### 💳 Payment Service (Port 8084)
-
-**Base URL:** `http://localhost:8084`
-
-#### Payment Management
-
-| Method | Endpoint | Description | Auth Required | Role |
-|--------|----------|-------------|---------------|------|
-| POST | `/api/payments` | Initiate payment | Yes | - |
-| POST | `/api/payments/{id}/confirm` | Confirm payment | Yes | - |
-| POST | `/api/payments/{id}/fail` | Mark payment as failed | Yes | - |
-| GET | `/api/payments` | Get user payments | Yes | - |
-| GET | `/api/payments/booking/{bookingId}` | Get payments by booking | Yes | - |
-| GET | `/api/payments/between` | Get payments by date range | Yes | - |
-| GET | `/api/payments/status/{status}` | Get payments by status | Yes | - |
-
-#### Admin Endpoints
-
-| Method | Endpoint | Description | Auth Required | Role |
-|--------|----------|-------------|---------------|------|
-| GET | `/api/payments/admin/all` | Get all payments | Yes | ADMIN |
-| GET | `/api/payments/admin/user/{userId}` | Get user payments (admin) | Yes | ADMIN |
-| GET | `/api/payments/admin/status/{status}` | Get payments by status (admin) | Yes | ADMIN |
-| POST | `/api/payments/cache/clear` | Clear payment cache | Yes | ADMIN |
-
-#### Request Examples
-
-**Initiate Payment:**
-```json
-POST /api/payments
-{
-  "bookingId": "123e4567-e89b-12d3-a456-426614174000",
-  "amount": 25.50
-}
-```
-
-**Confirm Payment:**
-```json
-POST /api/payments/123e4567-e89b-12d3-a456-426614174000/confirm
-```
-
-### 📧 Notification Service (Port 8085)
-
-**Base URL:** `http://localhost:8085`
-
-#### Notification Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/notifications/email` | Send email notification | Yes |
-| GET | `/api/notifications/status` | Get service status | No |
-
-#### Request Examples
-
-**Send Email:**
-```json
-POST /api/notifications/email
-{
-  "to": "user@example.com",
-  "subject": "Booking Confirmation",
-  "body": "Your parking booking has been confirmed."
-}
-```
-
-## 🔧 Swagger Documentation
-
-Access interactive API documentation at:
-- **User Service**: http://localhost:8081/swagger-ui.html
-- **Admin Service**: http://localhost:8082/swagger-ui.html
-- **Booking Service**: http://localhost:8083/swagger-ui.html
-- **Payment Service**: http://localhost:8084/swagger-ui.html
-- **Notification Service**: http://localhost:8085/swagger-ui.html
-
-## 🔄 System Flow
-
-### 1. User Registration & Authentication
-1. User registers via `/api/auth/register`
-2. User logs in via `/api/auth/login` to get JWT token
-3. JWT token used for authenticated requests
-
-### 2. Parking Management (Admin/Lot Manager)
-1. Admin creates parking lots via `/api/lots`
-2. Admin/Lot Manager adds parking spots via `/api/lots/{id}/spots`
-3. System tracks spot availability
-
-### 3. Booking Process
-1. User creates booking via `/api/bookings`
-2. System checks availability and creates booking or adds to waitlist
-3. Booking events published to message queue
-
-### 4. Payment Processing
-1. Payment initiated via `/api/payments`
-2. Payment confirmed via `/api/payments/{id}/confirm`
-3. Payment status events published to message queue
-
-### 5. Notifications
-1. Notification service listens to events
-2. Sends appropriate emails based on event type
-3. Logs all notification activities
-
-## ⚙️ Schedulers
-
-The system includes several scheduled tasks:
-
-- **Booking Cleanup**: Expires old CREATED bookings (every 15 minutes)
-- **Payment Reconciliation**: Expires PENDING payments > 2 hours (every 30 minutes)
-- **Admin Reporting**: Generates hourly occupancy reports
-- **Notification Reminders**: Daily reminder processing (9 AM)
-
-## 🔒 Security Features
-
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access Control**: USER, ADMIN, LOT_MANAGER roles
-- **Password Security**: BCrypt hashing
-- **Token Blacklisting**: Secure logout functionality
-- **Input Validation**: Comprehensive request validation
-
-## 🚀 Advanced Features
-
-### Event-Driven Architecture
-- **RabbitMQ Integration**: Asynchronous communication
-- **Event Publishing**: Service-to-service communication
-- **Event Listening**: Reactive event processing
-
-### Caching Strategy
-- **Redis Integration**: High-performance caching
-- **Profile Caching**: User profile data caching
-- **Availability Caching**: Spot availability caching
-- **Payment Caching**: Payment data caching
-
-### Waitlist Management
-- **Automatic Waitlist**: When spots unavailable
-- **Waitlist Processing**: Automatic promotion when spots free up
-- **Position Tracking**: User waitlist position
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Service Discovery Issues**
-   - Ensure Eureka server is running first
-   - Check service registration in Eureka dashboard
-
-2. **Database Connection Issues**
-   - Verify MySQL is running
-   - Check database credentials in application.yml
-
-3. **RabbitMQ Connection Issues**
-   - Ensure RabbitMQ is running
-   - Check RabbitMQ management interface
-
-4. **Redis Connection Issues**
-   - Verify Redis is running
-   - Check Redis connection settings
-
-### Logs
-Check application logs for detailed error information:
+**3. Get User Profile (Authenticated)**
 ```bash
-tail -f logs/application.log
+GET /api/users/profile?email=user@example.com
+Authorization: Bearer <JWT_TOKEN>
 ```
 
-## 📊 Monitoring
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "passwordHash": "$2a$10$...",
+  "roles": ["USER"],
+  "createdAt": "2025-10-28T18:20:31.527771Z"
+}
+```
+
+**4. Password Reset Request**
+```bash
+POST /api/users/auth/password/forgot?email=user@example.com
+```
+
+**Response:**
+```json
+{
+  "resetToken": "uuid-token"
+}
+```
+
+**5. Password Reset**
+```bash
+POST /api/users/auth/password/reset?token=uuid-token&newPassword=newpass123
+```
+
+**Response:**
+```json
+{
+  "message": "Password successfully reset"
+}
+```
+
+### Catalog Service APIs
+
+**Base URL:** `http://localhost:8080/api/books` (via Gateway)
+
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| GET | `/` | Get all books | No |
+| GET | `/{id}` | Get book by ID | No |
+| POST | `/` | Add new book | Yes (Librarian/Admin) |
+| PUT | `/{id}` | Update book | Yes (Librarian/Admin) |
+| DELETE | `/{id}` | Remove book | Yes (Librarian/Admin) |
+| GET | `/search?query={query}` | Search books | No |
+
+### Borrow Service APIs
+
+**Base URL:** `http://localhost:8080/api/borrows` (via Gateway)
+
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| POST | `/` | Request book borrowing | Yes (User) |
+| GET | `/user/{userId}` | Get user's borrowings | Yes (User) |
+| PUT | `/{id}/return` | Return book | Yes (User) |
+| GET | `/overdue` | Get overdue books | Yes (Librarian/Admin) |
+
+### Fine Service APIs
+
+**Base URL:** `http://localhost:8080/api/fines` (via Gateway)
+
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| GET | `/user/{userId}` | Get user's fines | Yes (User) |
+| POST | `/calculate` | Calculate fines for overdue books | Yes (System) |
+| POST | `/pay` | Process fine payment | Yes (User) |
+
+### Notification Service APIs
+
+**Base URL:** `http://localhost:8080/api/notifications` (via Gateway)
+
+| Method | Endpoint | Description | Authentication Required |
+|--------|----------|-------------|------------------------|
+| POST | `/send` | Send notification | Yes (System) |
+| GET | `/user/{userId}` | Get user notifications | Yes (User) |
+
+## 🔐 Security
+
+### Authentication
+- JWT-based authentication
+- Password encryption using BCrypt
+- Role-based access control (USER, LIBRARIAN, ADMIN)
+
+### Authorization
+- Public endpoints: Registration, Login, Password Reset
+- Protected endpoints: Profile management, Book operations
+- Role-based access for administrative functions
+
+## 📊 Database Schema
+
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USERS {
+        string id PK
+        string email UK
+        string name
+        string passwordHash
+        enum roles
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    PASSWORD_RESET_TOKENS {
+        string id PK
+        string userId FK
+        string token
+        datetime expiresAt
+        datetime createdAt
+    }
+    
+    BOOKS {
+        string id PK
+        string title
+        string author
+        string isbn UK
+        string publisher
+        int publicationYear
+        enum status
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    BORROW_RECORDS {
+        string id PK
+        string userId FK
+        string bookId FK
+        datetime borrowDate
+        datetime dueDate
+        datetime returnDate
+        enum status
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    BORROW_REQUESTS {
+        string id PK
+        string userId FK
+        string bookId FK
+        datetime requestDate
+        enum status
+        string reason
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    FINES {
+        string id PK
+        string userId FK
+        string borrowRecordId FK
+        decimal amount
+        enum status
+        datetime dueDate
+        datetime paidDate
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    PAYMENT_HISTORY {
+        string id PK
+        string fineId FK
+        decimal amount
+        string paymentMethod
+        string transactionId
+        datetime paymentDate
+        enum status
+        datetime createdAt
+    }
+    
+    NOTIFICATIONS {
+        string id PK
+        string userId FK
+        string type
+        string title
+        string message
+        boolean isRead
+        datetime sentAt
+        datetime createdAt
+    }
+    
+    NOTIFICATION_TEMPLATES {
+        string id PK
+        string type
+        string subject
+        string body
+        boolean isActive
+        datetime createdAt
+        datetime updatedAt
+    }
+    
+    USERS ||--o{ PASSWORD_RESET_TOKENS : "has"
+    USERS ||--o{ BORROW_RECORDS : "borrows"
+    USERS ||--o{ BORROW_REQUESTS : "requests"
+    USERS ||--o{ FINES : "owes"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    
+    BOOKS ||--o{ BORROW_RECORDS : "borrowed_as"
+    BOOKS ||--o{ BORROW_REQUESTS : "requested_as"
+    
+    BORROW_RECORDS ||--o{ FINES : "generates"
+    FINES ||--o{ PAYMENT_HISTORY : "has_payments"
+```
+
+### Database Details
+
+#### User Service Database (userdb)
+- **users** - User information and authentication
+- **password_reset_tokens** - Password reset functionality
+
+#### Catalog Service Database (catalogdb)
+- **books** - Book catalog and metadata
+- **book_status** - Book availability status
+
+#### Borrow Service Database (borrowdb)
+- **borrow_records** - Book borrowing history
+- **borrow_requests** - Pending borrow requests
+
+#### Fine Service Database (finedb)
+- **fines** - Fine records and payments
+- **payment_history** - Payment transaction history
+
+#### Notification Service Database (notifdb)
+- **notifications** - Notification records
+- **notification_templates** - Email templates
+
+## 🔄 Event-Driven Architecture
+
+The system uses RabbitMQ for asynchronous communication:
+
+### Events Published
+- **User Events**: Registration, Password Reset, Profile Changes
+- **Book Events**: Book Added, Updated, Removed
+- **Borrow Events**: Borrow Requested, Approved, Returned, Overdue
+- **Fine Events**: Fine Updated, Payment Requested, Payment Completed
+
+### Event Routing
+- All user events → `user.events.q`
+- All book events → `catalog.events.q`
+- All borrow events → `borrow.events.q`
+- All fine events → `fine.events.q`
+
+## 🚀 Deployment
+
+### Docker Deployment (Optional)
+```bash
+# Build all services
+mvn clean package
+
+# Run with Docker Compose
+docker-compose up -d
+```
+
+### Environment Variables
+```bash
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=root
+
+# RabbitMQ Configuration
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+
+# Redis Configuration (Optional)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Email Configuration
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+```
+
+## 🧪 Testing
+
+### Unit Tests
+```bash
+mvn test
+```
+
+### Integration Tests
+```bash
+mvn verify
+```
+
+### API Testing
+Use the provided Postman collection or test with curl commands shown in the API documentation.
+
+## 📈 Monitoring and Logging
 
 - **Eureka Dashboard**: http://localhost:8761
-- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
-- **Redis CLI**: `redis-cli` for cache inspection
+- **API Gateway**: http://localhost:8080
+- **Service Health**: Each service exposes health endpoints
+- **Logging**: Structured logging with SLF4J and Logback
+
+## 🔧 Configuration
+
+### Service Ports
+- Eureka Service: 8761
+- API Gateway: 8080
+- User Service: 8081
+- Catalog Service: 8082
+- Borrow Service: 8083
+- Fine Service: 8084
+- Notification Service: 8085
+
+### Database Ports
+- MySQL: 3306
+- RabbitMQ: 5672
+- Redis: 6379
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests if applicable
+4. Add tests
 5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+For support and questions:
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation and API examples
+
+---
+
+**Note**: This is a comprehensive library management system designed for educational and demonstration purposes. For production use, additional security measures, monitoring, and scalability considerations should be implemented.
